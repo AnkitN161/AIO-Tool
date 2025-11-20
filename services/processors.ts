@@ -13,6 +13,8 @@ export interface ProcessResult {
   type: 'file' | 'text' | 'image';
   success: boolean;
   message?: string;
+  originalSize?: number;
+  newSize?: number;
 }
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -23,22 +25,27 @@ let ffmpeg: FFmpeg | null = null;
 const loadFFmpeg = async () => {
   if (ffmpeg) return ffmpeg;
   
-  const instance = new FFmpeg();
-  
-  // In a real production environment, you need to host the core files or point to a reliable CDN
-  // AND ensure Cross-Origin-Opener-Policy and Cross-Origin-Embedder-Policy headers are set on your server.
-  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-  
+  // Use FFmpeg v0.12.x
+  // We explicitly load the SINGLE-THREADED core from unpkg.
+  // We use toBlobURL to bypass CORS restrictions on Worker loading.
   try {
+    const instance = new FFmpeg();
+    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+    
+    instance.on('log', ({ message }) => {
+      console.log('[FFmpeg]', message);
+    });
+
     await instance.load({
       coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
       wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
     });
+    
     ffmpeg = instance;
     return ffmpeg;
-  } catch (e) {
+  } catch (e: any) {
     console.error("FFmpeg load error:", e);
-    throw new Error("Video engine failed to load. This feature requires 'Cross-Origin-Opener-Policy' headers enabled on the server.");
+    throw new Error("Video engine failed to initialize. " + (e.message || ""));
   }
 };
 
@@ -138,13 +145,16 @@ const compressToTargetSize = async (file: File, targetKB: number): Promise<Blob>
   });
 };
 
-// --- Video/Audio Processors (FFmpeg) ---
+// --- Video/Audio Processors (FFmpeg v0.12) ---
 
-const processMedia = async (file: File, toolId: string): Promise<ProcessResult> => {
+const processMedia = async (file: File, toolId: string, options: any = {}): Promise<ProcessResult> => {
   const ffmpeg = await loadFFmpeg();
-  const inputName = 'input' + file.name.substring(file.name.lastIndexOf('.'));
-  const fileData = await fetchFile(file);
   
+  // In v0.12, we use writeFile + fetchFile (from @ffmpeg/util)
+  const fileData = await fetchFile(file);
+  const inputName = 'input' + file.name.substring(file.name.lastIndexOf('.'));
+  
+  // Write file to MEMFS
   await ffmpeg.writeFile(inputName, fileData);
 
   let outputName = '';
@@ -167,15 +177,23 @@ const processMedia = async (file: File, toolId: string): Promise<ProcessResult> 
   else if (toolId === 'video-compressor') {
     outputName = 'compressed.mp4';
     mimeType = 'video/mp4';
-    // CRF 28 is aggressive but good compression, preset fast
-    args.push('-i', inputName, '-vcodec', 'libx264', '-crf', '28', '-preset', 'fast', outputName);
+    
+    // Map quality settings to CRF values
+    const crfMap = {
+      low: '32',
+      medium: '28',
+      high: '23'
+    };
+    const crf = crfMap[(options.videoQuality as 'low'|'medium'|'high') || 'medium'];
+    
+    args.push('-i', inputName, '-vcodec', 'libx264', '-crf', crf, '-preset', 'fast', outputName);
   }
   else if (toolId === 'mp4-to-avi') {
     outputName = 'output.avi';
     mimeType = 'video/x-msvideo';
     args.push('-i', inputName, outputName);
   }
-  else if (toolId === 'mov-to-mp4' || toolId === 'avi-to-mp4' || toolId === 'mkv-to-mp4') {
+  else if (toolId === 'mov-to-mp4' || toolId === 'avi-to-mp4' || toolId === 'm4a-to-mp4' || toolId === 'mkv-to-mp4') {
     outputName = 'output.mp4';
     mimeType = 'video/mp4';
     args.push('-i', inputName, '-c:v', 'copy', '-c:a', 'copy', outputName);
@@ -193,30 +211,41 @@ const processMedia = async (file: File, toolId: string): Promise<ProcessResult> 
   else if (toolId === 'audio-compressor') {
     outputName = 'compressed.mp3';
     mimeType = 'audio/mpeg';
-    // Reduce bitrate to 64k
-    args.push('-i', inputName, '-b:a', '64k', outputName);
+    const bitrate = options.audioBitrate || '64k';
+    args.push('-i', inputName, '-b:a', bitrate, outputName);
   }
   else {
     throw new Error(`Tool ${toolId} not implemented in media engine.`);
   }
 
+  // Run FFmpeg (v0.12 uses .exec instead of .run)
   await ffmpeg.exec(args);
+  
+  // Read output
   const data = await ffmpeg.readFile(outputName);
-  const url = URL.createObjectURL(new Blob([data], { type: mimeType }));
+  
+  // data can be Uint8Array or string. For binary files it's usually Uint8Array.
+  // We cast to Uint8Array for Blob creation.
+  const u8Data = data as Uint8Array;
+  
+  const blob = new Blob([u8Data.buffer], { type: mimeType });
+  const url = URL.createObjectURL(blob);
 
-  // Cleanup to free memory
+  // Cleanup
   try {
     await ffmpeg.deleteFile(inputName);
     await ffmpeg.deleteFile(outputName);
   } catch(e) {
-    // Ignore deletion errors
+    // Ignore cleanup errors
   }
 
   return {
     success: true,
     type: 'file',
     url,
-    filename: outputName
+    filename: outputName,
+    originalSize: file.size,
+    newSize: blob.size
   };
 };
 
@@ -224,12 +253,23 @@ const processMedia = async (file: File, toolId: string): Promise<ProcessResult> 
 
 const mergePDFs = async (files: File[]): Promise<Uint8Array> => {
   const mergedPdf = await PDFDocument.create();
+  let processedCount = 0;
   
   for (const file of files) {
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await PDFDocument.load(arrayBuffer);
-    const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
-    copiedPages.forEach((page) => mergedPdf.addPage(page));
+    try {
+      const pdf = await PDFDocument.load(arrayBuffer);
+      const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+      copiedPages.forEach((page) => mergedPdf.addPage(page));
+      processedCount++;
+    } catch (e: any) {
+      console.error(`Error loading PDF ${file.name}:`, e);
+      throw new Error(`Failed to process file "${file.name}". It appears to be corrupted or not a valid PDF.`);
+    }
+  }
+
+  if (processedCount === 0) {
+    throw new Error("No valid PDF files were processed.");
   }
   
   return await mergedPdf.save();
@@ -237,18 +277,23 @@ const mergePDFs = async (files: File[]): Promise<Uint8Array> => {
 
 const splitPDF = async (file: File): Promise<Blob> => {
   const arrayBuffer = await file.arrayBuffer();
-  const pdfDoc = await PDFDocument.load(arrayBuffer);
-  const zip = new JSZip();
+  try {
+    const pdfDoc = await PDFDocument.load(arrayBuffer);
+    const zip = new JSZip();
 
-  for (let i = 0; i < pdfDoc.getPageCount(); i++) {
-    const newDoc = await PDFDocument.create();
-    const [copiedPage] = await newDoc.copyPages(pdfDoc, [i]);
-    newDoc.addPage(copiedPage);
-    const pdfBytes = await newDoc.save();
-    zip.file(`page-${i + 1}.pdf`, pdfBytes);
+    for (let i = 0; i < pdfDoc.getPageCount(); i++) {
+      const newDoc = await PDFDocument.create();
+      const [copiedPage] = await newDoc.copyPages(pdfDoc, [i]);
+      newDoc.addPage(copiedPage);
+      const pdfBytes = await newDoc.save();
+      zip.file(`page-${i + 1}.pdf`, pdfBytes);
+    }
+
+    return await zip.generateAsync({ type: 'blob' });
+  } catch (e: any) {
+    console.error(`Error loading PDF ${file.name}:`, e);
+    throw new Error(`Failed to process file "${file.name}". It appears to be corrupted or not a valid PDF.`);
   }
-
-  return await zip.generateAsync({ type: 'blob' });
 };
 
 const textToPDF = async (text: string): Promise<Uint8Array> => {
@@ -273,26 +318,36 @@ const textToPDF = async (text: string): Promise<Uint8Array> => {
 
 const imageToPDF = async (files: File[]): Promise<Uint8Array> => {
   const pdfDoc = await PDFDocument.create();
+  let processed = 0;
 
   for (const file of files) {
     const imageBytes = await file.arrayBuffer();
     let image;
-    if (file.type === 'image/jpeg' || file.name.endsWith('.jpg') || file.name.endsWith('.jpeg')) {
-      image = await pdfDoc.embedJpg(imageBytes);
-    } else if (file.type === 'image/png' || file.name.endsWith('.png')) {
-      image = await pdfDoc.embedPng(imageBytes);
-    } else {
-      // Skip unsupported formats in this basic demo
-      continue;
-    }
+    try {
+      if (file.type === 'image/jpeg' || file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.jpeg')) {
+        image = await pdfDoc.embedJpg(imageBytes);
+      } else if (file.type === 'image/png' || file.name.toLowerCase().endsWith('.png')) {
+        image = await pdfDoc.embedPng(imageBytes);
+      } else {
+        // Skip unsupported formats in this basic demo
+        continue;
+      }
 
-    const page = pdfDoc.addPage([image.width, image.height]);
-    page.drawImage(image, {
-      x: 0,
-      y: 0,
-      width: image.width,
-      height: image.height,
-    });
+      const page = pdfDoc.addPage([image.width, image.height]);
+      page.drawImage(image, {
+        x: 0,
+        y: 0,
+        width: image.width,
+        height: image.height,
+      });
+      processed++;
+    } catch (e) {
+      console.warn(`Skipping invalid image ${file.name}`);
+    }
+  }
+
+  if (processed === 0) {
+    throw new Error("No valid images (JPG/PNG) could be added to the PDF.");
   }
 
   return await pdfDoc.save();
@@ -359,11 +414,12 @@ export const processTool = async (
       'mp3-to-wav', 'wav-to-mp3', 'm4a-to-mp3', 'audio-compressor'
     ].includes(toolId)) {
       if (files.length === 0) throw new Error("No media file provided");
-      return await processMedia(files[0], toolId);
+      return await processMedia(files[0], toolId, options);
     }
 
     // --- Images ---
-    if (['jpg-to-png', 'png-to-jpg', 'webp-to-jpg', 'image-compressor', 'gr-scale-converter', 'image-resizer', 'svg-to-png'].includes(toolId)) {
+    const imageTools = ['jpg-to-png', 'png-to-jpg', 'webp-to-jpg', 'image-compressor', 'gr-scale-converter', 'image-resizer', 'svg-to-png'];
+    if (imageTools.includes(toolId)) {
       if (files.length === 0) throw new Error("No files provided");
 
       let targetFormat = 'jpeg';
@@ -384,19 +440,61 @@ export const processTool = async (
         }
       };
       
-      const blobs = await Promise.all(files.map(f => processFile(f)));
+      // Process all files in parallel
+      const results = await Promise.all(files.map(async (f) => {
+        const blob = await processFile(f);
+        return { blob, name: f.name, originalSize: f.size, newSize: blob.size };
+      }));
 
-      if (blobs.length === 1) {
+      if (results.length === 1) {
+        const { blob, name, originalSize, newSize } = results[0];
         const ext = targetFormat === 'jpeg' ? 'jpg' : targetFormat;
-        return { success: true, type: 'file', url: URL.createObjectURL(blobs[0]), filename: `processed.${ext}` };
+        // Replace original extension with new one
+        const baseName = name.substring(0, name.lastIndexOf('.')) || name;
+        const filename = `${baseName}.${ext}`;
+        return { 
+          success: true, 
+          type: 'file', 
+          url: URL.createObjectURL(blob), 
+          filename,
+          originalSize,
+          newSize
+        };
       } else {
+        // Batch processing: Create ZIP
         const zip = new JSZip();
-        blobs.forEach((blob, i) => {
+        const usedNames = new Set<string>();
+
+        results.forEach(({ blob, name }) => {
            const ext = targetFormat === 'jpeg' ? 'jpg' : targetFormat;
-           zip.file(`processed_${i + 1}.${ext}`, blob);
+           let baseName = name.substring(0, name.lastIndexOf('.'));
+           if(!baseName) baseName = name;
+           
+           let filename = `${baseName}.${ext}`;
+           
+           // Handle duplicate filenames
+           let counter = 1;
+           while(usedNames.has(filename)) {
+               filename = `${baseName}_${counter}.${ext}`;
+               counter++;
+           }
+           usedNames.add(filename);
+           
+           zip.file(filename, blob);
         });
+
         const content = await zip.generateAsync({ type: "blob" });
-        return { success: true, type: 'file', url: URL.createObjectURL(content), filename: "images.zip" };
+        const zipName = toolId === 'image-compressor' ? "compressed_images.zip" : "converted_images.zip";
+        const totalOriginal = results.reduce((acc, r) => acc + r.originalSize, 0);
+        
+        return { 
+          success: true, 
+          type: 'file', 
+          url: URL.createObjectURL(content), 
+          filename: zipName,
+          originalSize: totalOriginal,
+          newSize: content.size
+        };
       }
     }
 
@@ -507,16 +605,21 @@ export const processTool = async (
 
     // --- Office Files Fallback ---
     if (['word-to-pdf', 'pdf-to-word', 'excel-to-pdf', 'ppt-to-pdf'].includes(toolId)) {
-      // Try to hit localhost if the user happens to be running the backend, otherwise show error.
+      // Try to hit localhost or configured server
       try {
          if (files.length > 0) {
             const formData = new FormData();
             formData.append('file', files[0]);
+            
+            // Use the provided serverUrl or default to localhost
+            const serverUrl = options.serverUrl || 'http://localhost:3001';
+            const cleanUrl = serverUrl.replace(/\/$/, '');
+
             // 60s timeout to allow for large files or slow processing
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 60000);
             
-            const response = await fetch('http://localhost:3001/convert', {
+            const response = await fetch(`${cleanUrl}/convert`, {
                method: 'POST',
                body: formData,
                signal: controller.signal
@@ -532,18 +635,18 @@ export const processTool = async (
                   filename: files[0].name.replace(/\.[^/.]+$/, "") + ".pdf" 
                };
             } else {
-               throw new Error(response.statusText);
+               throw new Error(response.statusText || "Server responded with error");
             }
          }
       } catch (e: any) {
-         let msg = "Could not connect to local conversion server.";
+         let msg = "Could not connect to conversion server.";
          if (e.message === 'Failed to fetch') {
-             msg += "\n\nPOSSIBLE CAUSE: Browser Security Blocking.";
-             msg += "\nIf you see a 'Shield' icon in your address bar, click it and allow 'Unsafe scripts/content'.";
-             msg += "\nThis is required because the web app is HTTPS but your local server is HTTP.";
+             msg += "\n\nPOSSIBLE CAUSE: Browser Security Blocking (Mixed Content).";
+             msg += "\nSince this site is HTTPS, it cannot connect to a local HTTP server.";
+             msg += "\n\nFIX: Click the 'Shield' icon in your browser address bar and allow 'Unsafe scripts' or 'Insecure content'.";
          } else {
-             msg += "\n\nPlease ensure your Docker container is running on port 3001.";
-             msg += "\nClick 'Check Server Setup' below for instructions.";
+             msg += `\n\nError: ${e.message}`;
+             msg += "\nPlease ensure your Docker container is running and the URL is correct.";
          }
          return { 
             success: false, 

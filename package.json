@@ -1,7 +1,7 @@
 {
   "name": "aio-tools",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,25 +9,28 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^19.2.0",
-    "lucide-react": "^0.554.0",
-    "framer-motion": "^12.23.24",
-    "react-dom": "^19.2.0",
-    "react-dropzone": "^14.3.8",
-    "pdf-lib": "1.17.1",
-    "jszip": "3.10.1",
-    "file-saver": "2.0.5",
-    "qrcode": "1.5.3",
-    "marked": "12.0.0",
-    "@ffmpeg/ffmpeg": "0.12.10",
-    "@ffmpeg/util": "0.12.1",
-    "@ffmpeg/core": "0.12.6",
-    "tesseract.js": "5.0.5"
+    "@ffmpeg/ffmpeg": "^0.12.10",
+    "@ffmpeg/util": "^0.12.1",
+    "file-saver": "^2.0.5",
+    "framer-motion": "^10.16.4",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.292.0",
+    "marked": "^9.1.2",
+    "pdf-lib": "^1.17.1",
+    "qrcode": "^1.5.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-dropzone": "^14.2.3",
+    "tesseract.js": "^5.0.3"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "@types/file-saver": "^2.0.7",
+    "@types/node": "^20.10.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
+    "@vitejs/plugin-react": "^4.2.0",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.0"
   }
 }
