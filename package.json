@@ -1,0 +1,33 @@
+{
+  "name": "aio-tools",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "lucide-react": "^0.554.0",
+    "framer-motion": "^12.23.24",
+    "react-dom": "^19.2.0",
+    "react-dropzone": "^14.3.8",
+    "pdf-lib": "1.17.1",
+    "jszip": "3.10.1",
+    "file-saver": "2.0.5",
+    "qrcode": "1.5.3",
+    "marked": "12.0.0",
+    "@ffmpeg/ffmpeg": "0.12.10",
+    "@ffmpeg/util": "0.12.1",
+    "@ffmpeg/core": "0.12.6",
+    "tesseract.js": "5.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
