@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AIO Tools - Convert, Compress & Merge</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
         darkMode: 'class',
@@ -28,53 +28,31 @@
                 900: '#1e3a8a',
               }
             }
-          }
-        }
+          },
+        },
       }
     </script>
-    <style>
-      body {
-        font-family: 'Inter', sans-serif;
+    <script type="importmap">
+    {
+      "imports": {
+        "react/": "https://aistudiocdn.com/react@^19.2.0/",
+        "react": "https://aistudiocdn.com/react@^19.2.0",
+        "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+        "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+        "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.24",
+        "pdf-lib": "https://aistudiocdn.com/pdf-lib@^1.17.1",
+        "jszip": "https://aistudiocdn.com/jszip@^3.10.1",
+        "vite": "https://aistudiocdn.com/vite@^7.2.4",
+        "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+        "qrcode": "https://aistudiocdn.com/qrcode@^1.5.4",
+        "marked": "https://aistudiocdn.com/marked@^17.0.0",
+        "tesseract.js": "https://aistudiocdn.com/tesseract.js@^6.0.1",
+        "@ffmpeg/util": "https://aistudiocdn.com/@ffmpeg/util@^0.12.2",
+        "@ffmpeg/ffmpeg": "https://aistudiocdn.com/@ffmpeg/ffmpeg@^0.12.15"
       }
-      /* Custom Scrollbar */
-      ::-webkit-scrollbar {
-        width: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 4px;
-      }
-      .dark ::-webkit-scrollbar-thumb {
-        background: #475569;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
-      }
-    </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
-    "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.24",
-    "pdf-lib": "https://aistudiocdn.com/pdf-lib@^1.17.1",
-    "jszip": "https://aistudiocdn.com/jszip@^3.10.1",
-    "qrcode": "https://aistudiocdn.com/qrcode@^1.5.4",
-    "marked": "https://aistudiocdn.com/marked@^17.0.0",
-    "@ffmpeg/ffmpeg": "https://aistudiocdn.com/@ffmpeg/ffmpeg@^0.12.15",
-    "@ffmpeg/util": "https://aistudiocdn.com/@ffmpeg/util@^0.12.2",
-    "tesseract.js": "https://aistudiocdn.com/tesseract.js@^6.0.1",
-    "vite": "https://aistudiocdn.com/vite@^7.2.4",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
-  }
-}
-</script>
-</head>
+    }
+    </script>
+  </head>
   <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50 transition-colors duration-300">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>

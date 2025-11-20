@@ -22,6 +22,7 @@ export interface Category {
   description: string;
   icon: string;
   color: string;
+  textColor: string;
 }
 
 export interface Route {

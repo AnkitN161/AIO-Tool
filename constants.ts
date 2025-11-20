@@ -7,6 +7,7 @@ export const CATEGORIES: Category[] = [
     description: 'Convert, merge, and edit PDF, Word, Excel, and more.',
     icon: 'FileText',
     color: 'bg-blue-500',
+    textColor: 'text-blue-500',
   },
   {
     id: CategoryId.IMAGES,
@@ -14,6 +15,7 @@ export const CATEGORIES: Category[] = [
     description: 'Resize, crop, and convert JPG, PNG, WEBP, SVG.',
     icon: 'Image',
     color: 'bg-purple-500',
+    textColor: 'text-purple-500',
   },
   {
     id: CategoryId.AUDIO,
@@ -21,6 +23,7 @@ export const CATEGORIES: Category[] = [
     description: 'Convert MP3, WAV, extract audio, and compress.',
     icon: 'Music',
     color: 'bg-pink-500',
+    textColor: 'text-pink-500',
   },
   {
     id: CategoryId.VIDEO,
@@ -28,6 +31,7 @@ export const CATEGORIES: Category[] = [
     description: 'Edit, compress, and convert MP4, AVI, MOV.',
     icon: 'Video',
     color: 'bg-red-500',
+    textColor: 'text-red-500',
   },
   {
     id: CategoryId.ARCHIVES,
@@ -35,6 +39,7 @@ export const CATEGORIES: Category[] = [
     description: 'Compress and extract ZIP, RAR, 7Z formats.',
     icon: 'Archive',
     color: 'bg-orange-500',
+    textColor: 'text-orange-500',
   },
   {
     id: CategoryId.ADVANCED,
@@ -42,6 +47,7 @@ export const CATEGORIES: Category[] = [
     description: 'OCR, JSON, Base64, QR Codes, and developer tools.',
     icon: 'Cpu',
     color: 'bg-slate-600',
+    textColor: 'text-slate-600',
   },
 ];
 
